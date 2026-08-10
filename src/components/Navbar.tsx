@@ -17,15 +17,18 @@ import {
   MessageSquare,
   Info,
   Calendar,
+  Database,
 } from 'lucide-react';
 import { useAdmin } from '../context/AdminContext';
 import { compressImageFile, usePersistentState } from '../utils/imageStorage';
+import { DataBackupModal } from './DataBackupModal';
 
 export const Navbar: React.FC = () => {
   const { isAdmin, currentAdmin, setIsLoginModalOpen } = useAdmin();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('hero');
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
 
   // Custom KKN Logo State
   const [logoUrl, setLogoUrl] = usePersistentState<string>('kkn_navbar_logo', '');
@@ -281,6 +284,16 @@ export const Navbar: React.FC = () => {
 
         {/* Action Button Desktop */}
         <div className="hidden lg:flex items-center gap-3">
+          {/* Backup Data Button */}
+          <button
+            onClick={() => setIsBackupModalOpen(true)}
+            className="px-3.5 py-2 rounded-full text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 flex items-center gap-1.5 transition-all shadow-2xs hover:scale-105 cursor-pointer"
+            title="Backup & Restore Data Website (JSON)"
+          >
+            <Database className="w-3.5 h-3.5 text-amber-800 shrink-0" />
+            <span>Backup Data</span>
+          </button>
+
           {/* Admin Toggle Button */}
           <button
             onClick={() => setIsLoginModalOpen(true)}
@@ -335,13 +348,24 @@ export const Navbar: React.FC = () => {
           >
             <div className="px-5 py-5 flex flex-col gap-2 max-h-[80vh] overflow-y-auto">
               {/* Admin Button at top of mobile menu */}
-              <div className="pb-2 border-b border-gray-100">
+              <div className="pb-2 border-b border-gray-100 space-y-2">
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setIsBackupModalOpen(true);
+                  }}
+                  className="w-full py-2.5 px-4 text-xs font-extrabold rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 flex items-center justify-center gap-2 shadow-2xs"
+                >
+                  <Database className="w-4 h-4 text-amber-800 shrink-0" />
+                  <span>BACKUP / RESTORE DATA (JSON)</span>
+                </button>
+
                 <button
                   onClick={() => {
                     setMobileMenuOpen(false);
                     setIsLoginModalOpen(true);
                   }}
-                  className={`w-full py-3 px-4 text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-2 border shadow-sm ${
+                  className={`w-full py-2.5 px-4 text-xs font-extrabold rounded-xl transition-all flex items-center justify-center gap-2 border shadow-sm ${
                     isAdmin
                       ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
                       : 'bg-[#e8f5e9] text-[#012d1d] border-emerald-300 hover:bg-[#c8e6c9]'
@@ -436,6 +460,12 @@ export const Navbar: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Global Data Backup & Restore Modal */}
+      <DataBackupModal
+        isOpen={isBackupModalOpen}
+        onClose={() => setIsBackupModalOpen(false)}
+      />
     </header>
   );
 };

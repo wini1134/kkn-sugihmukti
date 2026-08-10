@@ -1,0 +1,22 @@
+{
+  "entities": {
+    "app_state": {
+      "title": "AppState",
+      "description": "Stores real-time website persistent state across deployments",
+      "properties": {
+        "key": {
+          "type": "string",
+          "description": "State key name"
+        },
+        "value": {
+          "type": "string",
+          "description": "Serialized JSON value of the state"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      }
+    }
+  }
+}

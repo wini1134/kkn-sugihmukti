@@ -132,7 +132,7 @@ export const Footer: React.FC = () => {
         {/* Copyright */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-white/50 gap-4 text-center sm:text-left">
           <p>© 2026 KKN Desa Sugihmukti. All Rights Reserved.</p>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 flex-wrap justify-center sm:justify-start">
             <button
               onClick={() => setIsLoginModalOpen(true)}
               className="text-white/70 hover:text-white transition-colors flex items-center gap-1.5 font-medium underline"
@@ -145,7 +145,7 @@ export const Footer: React.FC = () => {
               ) : (
                 <>
                   <Lock className="w-3.5 h-3.5 text-white/70" />
-                  <span>Akses Admin</span>
+                  <span>Akses Admin / Backup Data</span>
                 </>
               )}
             </button>

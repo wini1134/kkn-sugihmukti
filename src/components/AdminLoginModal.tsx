@@ -12,6 +12,8 @@ import {
   Check,
   AlertCircle,
   Key,
+  Download,
+  Upload,
 } from 'lucide-react';
 import { useAdmin } from '../context/AdminContext';
 
@@ -85,6 +87,72 @@ export const AdminLoginModal: React.FC = () => {
     } else {
       setError(res.message);
     }
+  };
+
+  const handleExportJSON = () => {
+    try {
+      const keys = [
+        'kkn_admin_users_v2',
+        'kkn_testimonials_v2',
+        'kkn_programs_v2',
+        'kkn_gallery_v2',
+        'kkn_team_v2',
+        'kkn_hero_banner_v2',
+        'kkn_site_settings_v2',
+        'kkn_guestbook_v2',
+        'kkn_navbar_logo',
+        'kkn_about_stats_v2',
+        'kkn_timeline_v2',
+        'kkn_polaroids_v2'
+      ];
+      const backupObj: Record<string, any> = {};
+      keys.forEach((key) => {
+        const item = localStorage.getItem(key);
+        if (item) {
+          try {
+            backupObj[key] = JSON.parse(item);
+          } catch {
+            backupObj[key] = item;
+          }
+        }
+      });
+      const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `kkn-sugihmukti-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setSuccessMsg('File backup JSON berhasil diunduh!');
+    } catch {
+      setError('Gagal mendownload backup.');
+    }
+  };
+
+  const handleImportJSON = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const parsed = JSON.parse(event.target?.result as string);
+        if (typeof parsed === 'object' && parsed !== null) {
+          Object.keys(parsed).forEach((key) => {
+            const val = parsed[key];
+            if (val !== undefined && val !== null) {
+              localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+            }
+          });
+          setSuccessMsg('Data berhasil diimport! Memuat ulang halaman...');
+          setTimeout(() => {
+            window.location.reload();
+          }, 1200);
+        }
+      } catch {
+        setError('Gagal membaca file JSON backup.');
+      }
+    };
+    reader.readAsText(file);
   };
 
   if (!isLoginModalOpen) return null;
@@ -161,6 +229,51 @@ export const AdminLoginModal: React.FC = () => {
 
               <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100 text-[11px] text-[#012d1d] leading-relaxed">
                 ✨ <strong>Akses Penuh Terbuka:</strong> Anda sekarang bisa mengubah foto banner, foto anggota tim, menambah/mengedit program kerja, serta mengganti foto galeri.
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 leading-relaxed space-y-2">
+                <p className="font-bold flex items-center gap-1.5">
+                  💡 Tips Deploy Vercel:
+                </p>
+                <p className="text-[10.5px] text-amber-800">
+                  Perubahan data di browser tersimpan di <code>localStorage</code>. Agar data Anda otomatis permanen di Vercel, Anda bisa mengunduh file Backup Data ini.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const keys = [
+                      'kkn_admin_users_v2',
+                      'kkn_testimonials_v2',
+                      'kkn_programs_v2',
+                      'kkn_gallery_v2',
+                      'kkn_team_v2',
+                      'kkn_hero_banner_v2',
+                      'kkn_site_settings_v2',
+                      'kkn_guestbook_v2',
+                    ];
+                    const backupObj: Record<string, any> = {};
+                    keys.forEach((key) => {
+                      const item = localStorage.getItem(key);
+                      if (item) {
+                        try {
+                          backupObj[key] = JSON.parse(item);
+                        } catch {
+                          backupObj[key] = item;
+                        }
+                      }
+                    });
+                    const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `kkn-sugihmukti-data-backup-${new Date().toISOString().slice(0,10)}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow-xs"
+                >
+                  📥 Download Backup Data Saya (JSON)
+                </button>
               </div>
 
               <button
@@ -337,6 +450,33 @@ export const AdminLoginModal: React.FC = () => {
                   </button>
                 </form>
               )}
+
+              {/* Quick Backup / Restore Data JSON Bar */}
+              <div className="mt-5 pt-4 border-t border-gray-100 space-y-2">
+                <div className="text-[11px] font-bold text-gray-500 text-center uppercase tracking-wider">
+                  📦 Backup / Restore Data (JSON)
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportJSON}
+                    className="py-2.5 px-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                  >
+                    <Download className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                    <span>Download Backup</span>
+                  </button>
+                  <label className="py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-[#012d1d] border border-emerald-200 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs">
+                    <Upload className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                    <span>Upload Restore</span>
+                    <input
+                      type="file"
+                      accept=".json,application/json"
+                      className="hidden"
+                      onChange={handleImportJSON}
+                    />
+                  </label>
+                </div>
+              </div>
             </div>
           )}
         </motion.div>
