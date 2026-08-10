@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { usePersistentState } from '../utils/imageStorage';
 
 export interface AdminUser {
   name: string;
@@ -31,21 +32,11 @@ const DEFAULT_ADMIN: AdminUser = {
 };
 
 export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Load saved admin users
-  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(() => {
-    try {
-      const saved = localStorage.getItem(ADMIN_USERS_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {
-      // fallback
-    }
-    return [DEFAULT_ADMIN];
-  });
+  // Load saved admin users with Firebase Firestore real-time sync
+  const [adminUsers, setAdminUsers] = usePersistentState<AdminUser[]>(
+    ADMIN_USERS_STORAGE_KEY,
+    [DEFAULT_ADMIN]
+  );
 
   // Current logged-in admin user
   const [currentAdmin, setCurrentAdmin] = useState<AdminUser | null>(() => {
@@ -61,11 +52,6 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
-
-  // Sync users to localStorage
-  useEffect(() => {
-    localStorage.setItem(ADMIN_USERS_STORAGE_KEY, JSON.stringify(adminUsers));
-  }, [adminUsers]);
 
   // Sync current admin to localStorage
   useEffect(() => {

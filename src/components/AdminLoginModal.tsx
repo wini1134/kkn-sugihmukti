@@ -16,6 +16,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { useAdmin } from '../context/AdminContext';
+import { setPersistentItem } from '../utils/imageStorage';
 
 export const AdminLoginModal: React.FC = () => {
   const {
@@ -133,17 +134,18 @@ export const AdminLoginModal: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const parsed = JSON.parse(event.target?.result as string);
         if (typeof parsed === 'object' && parsed !== null) {
-          Object.keys(parsed).forEach((key) => {
+          const keys = Object.keys(parsed);
+          for (const key of keys) {
             const val = parsed[key];
             if (val !== undefined && val !== null) {
-              localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+              await setPersistentItem(key, val);
             }
-          });
-          setSuccessMsg('Data berhasil diimport! Memuat ulang halaman...');
+          }
+          setSuccessMsg('Data berhasil diimport ke Firebase & LocalStorage! Memuat ulang halaman...');
           setTimeout(() => {
             window.location.reload();
           }, 1200);
@@ -231,12 +233,12 @@ export const AdminLoginModal: React.FC = () => {
                 ✨ <strong>Akses Penuh Terbuka:</strong> Anda sekarang bisa mengubah foto banner, foto anggota tim, menambah/mengedit program kerja, serta mengganti foto galeri.
               </div>
 
-              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 leading-relaxed space-y-2">
-                <p className="font-bold flex items-center gap-1.5">
-                  💡 Tips Deploy Vercel:
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 leading-relaxed space-y-2">
+                <p className="font-bold flex items-center gap-1.5 text-emerald-800">
+                  🔥 Firebase Cloud Sync Aktif:
                 </p>
-                <p className="text-[10.5px] text-amber-800">
-                  Perubahan data di browser tersimpan di <code>localStorage</code>. Agar data Anda otomatis permanen di Vercel, Anda bisa mengunduh file Backup Data ini.
+                <p className="text-[10.5px] text-emerald-800">
+                  Data website sudah terhubung secara <strong>Real-time ke Firebase Cloud Database</strong>. Semua perubahan data yang dilakukan di sini langsung tersimpan secara permanen dan otomatis tampil di Vercel/domain publik secara live.
                 </p>
                 <button
                   type="button"
