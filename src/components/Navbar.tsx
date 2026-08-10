@@ -284,15 +284,17 @@ export const Navbar: React.FC = () => {
 
         {/* Action Button Desktop */}
         <div className="hidden lg:flex items-center gap-3">
-          {/* Backup & Cloud Sync Data Button */}
-          <button
-            onClick={() => setIsBackupModalOpen(true)}
-            className="px-3.5 py-2 rounded-full text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 flex items-center gap-1.5 transition-all shadow-2xs hover:scale-105 cursor-pointer"
-            title="Kelola & Sinkronkan Data Cloud ke Vercel"
-          >
-            <Database className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
-            <span>Backup & Cloud Sync</span>
-          </button>
+          {/* Backup & Cloud Sync Data Button (Khusus Admin) */}
+          {isAdmin && (
+            <button
+              onClick={() => setIsBackupModalOpen(true)}
+              className="px-3.5 py-2 rounded-full text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 flex items-center gap-1.5 transition-all shadow-2xs hover:scale-105 cursor-pointer"
+              title="Kelola & Sinkronkan Data Cloud ke Vercel"
+            >
+              <Database className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
+              <span>Backup & Cloud Sync</span>
+            </button>
+          )}
 
           {/* Admin Toggle Button */}
           <button
@@ -349,16 +351,18 @@ export const Navbar: React.FC = () => {
             <div className="px-5 py-5 flex flex-col gap-2 max-h-[80vh] overflow-y-auto">
               {/* Admin Button at top of mobile menu */}
               <div className="pb-2 border-b border-gray-100 space-y-2">
-                <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    setIsBackupModalOpen(true);
-                  }}
-                  className="w-full py-2.5 px-4 text-xs font-extrabold rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-950 border border-emerald-300 flex items-center justify-center gap-2 shadow-2xs"
-                >
-                  <Database className="w-4 h-4 text-emerald-800 shrink-0" />
-                  <span>SINKRONKAN DATA CLOUD & BACKUP</span>
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setIsBackupModalOpen(true);
+                    }}
+                    className="w-full py-2.5 px-4 text-xs font-extrabold rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-950 border border-emerald-300 flex items-center justify-center gap-2 shadow-2xs"
+                  >
+                    <Database className="w-4 h-4 text-emerald-800 shrink-0" />
+                    <span>SINKRONKAN DATA CLOUD & BACKUP</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => {

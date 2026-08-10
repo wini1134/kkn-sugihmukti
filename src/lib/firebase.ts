@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App
@@ -13,6 +13,8 @@ export const db = getFirestore(
     : undefined
 );
 
+const CHUNK_SIZE = 500000; // 500 KB chunk threshold to safely bypass Firestore 1MB doc limit
+
 /**
  * Listens to real-time changes from Firestore for a given state key.
  */
@@ -20,10 +22,33 @@ export function subscribeToAppState(key: string, onChange: (value: any) => void)
   const docRef = doc(db, 'app_state', key);
   return onSnapshot(
     docRef,
-    (snapshot) => {
+    async (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        if (data && data.value !== undefined) {
+        if (!data) return;
+
+        if (data.isChunked && data.chunkCount > 0) {
+          try {
+            const chunkPromises = [];
+            for (let i = 0; i < data.chunkCount; i++) {
+              chunkPromises.push(getDoc(doc(db, 'app_state', `${key}_c${i}`)));
+            }
+            const chunkSnaps = await Promise.all(chunkPromises);
+            const fullString = chunkSnaps
+              .map((s) => (s.exists() ? s.data()?.chunk || '' : ''))
+              .join('');
+
+            if (fullString) {
+              try {
+                onChange(JSON.parse(fullString));
+              } catch (_) {
+                onChange(fullString);
+              }
+            }
+          } catch (err) {
+            console.warn(`Failed to read chunked Firestore state for ${key}:`, err);
+          }
+        } else if (data.value !== undefined) {
           try {
             const parsed = JSON.parse(data.value);
             onChange(parsed);
@@ -44,13 +69,38 @@ export function subscribeToAppState(key: string, onChange: (value: any) => void)
  */
 export async function saveAppState(key: string, value: any): Promise<void> {
   try {
-    const docRef = doc(db, 'app_state', key);
-    const stringVal = typeof value === 'string' ? JSON.stringify(value) : JSON.stringify(value);
-    await setDoc(docRef, {
-      key,
-      value: stringVal,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
+    const stringVal = typeof value === 'string' ? value : JSON.stringify(value);
+
+    if (stringVal.length > CHUNK_SIZE) {
+      const chunkCount = Math.ceil(stringVal.length / CHUNK_SIZE);
+      const chunkPromises = [];
+
+      for (let i = 0; i < chunkCount; i++) {
+        const chunkStr = stringVal.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        const chunkDocRef = doc(db, 'app_state', `${key}_c${i}`);
+        chunkPromises.push(setDoc(chunkDocRef, { chunk: chunkStr }));
+      }
+
+      await Promise.all(chunkPromises);
+
+      const mainDocRef = doc(db, 'app_state', key);
+      await setDoc(mainDocRef, {
+        key,
+        isChunked: true,
+        chunkCount,
+        value: '',
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } else {
+      const mainDocRef = doc(db, 'app_state', key);
+      await setDoc(mainDocRef, {
+        key,
+        isChunked: false,
+        chunkCount: 0,
+        value: stringVal,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
   } catch (error) {
     console.error(`Firestore save error for ${key}:`, error);
   }
