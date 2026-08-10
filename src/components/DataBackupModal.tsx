@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Download, Upload, Database, X, Check, AlertCircle, RefreshCw } from 'lucide-react';
+import { Download, Upload, Database, X, Check, AlertCircle, RefreshCw, Cloud, Zap } from 'lucide-react';
+import { syncAllLocalToFirebase, setPersistentItem } from '../utils/imageStorage';
 
 interface DataBackupModalProps {
   isOpen: boolean;
@@ -9,14 +10,20 @@ interface DataBackupModalProps {
 
 const LOCAL_STORAGE_KEYS = [
   'kkn_admin_users_v2',
+  'kkn_hero_bg',
+  'kkn_about_img',
+  'kkn_navbar_logo',
+  'kkn_team_members_v1',
+  'kkn_gallery_items_v1',
+  'kkn_polaroids_v1',
+  'kkn_programs_v1',
   'kkn_testimonials_v2',
+  'kkn_guestbook_entries_v1',
   'kkn_programs_v2',
   'kkn_gallery_v2',
   'kkn_team_v2',
   'kkn_hero_banner_v2',
-  'kkn_site_settings_v2',
   'kkn_guestbook_v2',
-  'kkn_navbar_logo',
   'kkn_about_stats_v2',
   'kkn_timeline_v2',
   'kkn_polaroids_v2'
@@ -24,8 +31,27 @@ const LOCAL_STORAGE_KEYS = [
 
 export const DataBackupModal: React.FC<DataBackupModalProps> = ({ isOpen, onClose }) => {
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   if (!isOpen) return null;
+
+  // Manual Cloud Sync to Firebase Firestore
+  const handleCloudSync = async () => {
+    setIsSyncing(true);
+    setStatusMsg(null);
+    try {
+      const count = await syncAllLocalToFirebase();
+      setStatusMsg({
+        type: 'success',
+        text: `🔥 Berhasil mensinkronkan ${count} modul data ke Firebase Cloud! Tampilan di Vercel/HP sekarang otomatis terupdate secara Real-Time.`
+      });
+    } catch (err) {
+      console.error(err);
+      setStatusMsg({ type: 'error', text: 'Gagal sinkronisasi data ke Firebase Cloud.' });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Export/Download JSON
   const handleExport = () => {
@@ -66,7 +92,7 @@ export const DataBackupModal: React.FC<DataBackupModalProps> = ({ isOpen, onClos
 
       setStatusMsg({
         type: 'success',
-        text: `Berhasil mengunduh file backup (${keysFound} modul data). Simpan file ini untuk diimport saat deploy Vercel.`
+        text: `Berhasil mengunduh file backup (${keysFound} modul data). Simpan file ini sebagai cadangan lokal.`
       });
     } catch (err) {
       console.error(err);
@@ -80,7 +106,7 @@ export const DataBackupModal: React.FC<DataBackupModalProps> = ({ isOpen, onClos
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const content = event.target?.result as string;
         const parsed = JSON.parse(content);
@@ -90,17 +116,18 @@ export const DataBackupModal: React.FC<DataBackupModalProps> = ({ isOpen, onClos
         }
 
         let restoredCount = 0;
-        Object.keys(parsed).forEach((key) => {
+        const keys = Object.keys(parsed);
+        for (const key of keys) {
           const val = parsed[key];
           if (val !== undefined && val !== null) {
-            localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
+            await setPersistentItem(key, val);
             restoredCount++;
           }
-        });
+        }
 
         setStatusMsg({
           type: 'success',
-          text: `Berhasil memuat ${restoredCount} modul data! Halaman akan dimuat ulang...`
+          text: `Berhasil memuat & menyimpan ${restoredCount} modul data ke Firebase Cloud! Halaman akan dimuat ulang...`
         });
 
         setTimeout(() => {
@@ -182,20 +209,40 @@ export const DataBackupModal: React.FC<DataBackupModalProps> = ({ isOpen, onClos
           )}
 
           {/* Instructions Box */}
-          <div className="mb-6 p-4 bg-amber-50/80 rounded-2xl border border-amber-200 text-xs text-amber-900 leading-relaxed space-y-1.5">
-            <p className="font-bold flex items-center gap-1.5 text-amber-950">
-              💡 Mengapa tampilan kembali ke default saat di Vercel?
+          <div className="mb-6 p-4 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-950 leading-relaxed space-y-1.5">
+            <p className="font-bold flex items-center gap-1.5 text-emerald-900">
+              🔥 Firebase Firestore Real-Time Cloud Online:
             </p>
-            <p className="text-[11px] text-amber-900">
-              Perubahan foto dan teks tersimpan di browser (<code>localStorage</code>). Saat dibuka di device/browser lain atau di Vercel, browser membaca data awal default.
+            <p className="text-[11px] text-emerald-800">
+              Database Cloud sudah terhubung! Semua foto, tim, dan program kerja tersimpan permanen di cloud dan otomatis tampil di Vercel secara real-time.
             </p>
-            <p className="text-[11px] font-bold text-amber-950">
-              ✅ Solusi: Download (Export) file JSON di sini, lalu Upload (Import) file JSON tersebut di Vercel/browser baru Anda.
+            <p className="text-[11px] font-bold text-emerald-950">
+              💡 Klik tombol <strong>"Sinkronkan Data ke Firebase Cloud"</strong> di bawah jika ingin memastikan semua data lokal saat ini langsung diupload ke Vercel!
             </p>
           </div>
 
           {/* Action Buttons */}
           <div className="space-y-3">
+            {/* Sync to Firebase Cloud Button */}
+            <button
+              onClick={handleCloudSync}
+              disabled={isSyncing}
+              className="w-full py-4 px-5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl font-bold text-xs transition-all flex items-center justify-between shadow-lg shadow-emerald-900/10 hover:scale-[1.01]"
+            >
+              <div className="flex items-center gap-3">
+                <Cloud className={`w-5 h-5 text-emerald-200 ${isSyncing ? 'animate-bounce' : ''}`} />
+                <div className="text-left">
+                  <div className="font-extrabold text-sm flex items-center gap-1.5">
+                    <span>Sinkronkan Data ke Firebase Cloud</span>
+                    <Zap className="w-3.5 h-3.5 text-amber-300 fill-amber-300" />
+                  </div>
+                  <div className="text-[10.5px] text-emerald-100 font-normal">
+                    {isSyncing ? 'Sedang mengupload ke Cloud...' : 'Upload semua foto & teks lokal langsung agar otomatis tampil di Vercel'}
+                  </div>
+                </div>
+              </div>
+            </button>
+
             {/* Download/Export Button */}
             <button
               onClick={handleExport}
@@ -205,7 +252,7 @@ export const DataBackupModal: React.FC<DataBackupModalProps> = ({ isOpen, onClos
                 <Download className="w-4 h-4 text-emerald-400" />
                 <div className="text-left">
                   <div className="font-extrabold">Download Backup Data (Export JSON)</div>
-                  <div className="text-[10px] text-gray-300 font-normal">Unduh semua foto & perubahan data ke komputer/HP Anda</div>
+                  <div className="text-[10px] text-gray-300 font-normal">Unduh semua foto & perubahan data ke file offline di HP/Komputer</div>
                 </div>
               </div>
             </button>

@@ -284,14 +284,14 @@ export const Navbar: React.FC = () => {
 
         {/* Action Button Desktop */}
         <div className="hidden lg:flex items-center gap-3">
-          {/* Backup Data Button */}
+          {/* Backup & Cloud Sync Data Button */}
           <button
             onClick={() => setIsBackupModalOpen(true)}
-            className="px-3.5 py-2 rounded-full text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 flex items-center gap-1.5 transition-all shadow-2xs hover:scale-105 cursor-pointer"
-            title="Backup & Restore Data Website (JSON)"
+            className="px-3.5 py-2 rounded-full text-xs font-bold bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300 flex items-center gap-1.5 transition-all shadow-2xs hover:scale-105 cursor-pointer"
+            title="Kelola & Sinkronkan Data Cloud ke Vercel"
           >
-            <Database className="w-3.5 h-3.5 text-amber-800 shrink-0" />
-            <span>Backup Data</span>
+            <Database className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
+            <span>Backup & Cloud Sync</span>
           </button>
 
           {/* Admin Toggle Button */}
@@ -354,10 +354,10 @@ export const Navbar: React.FC = () => {
                     setMobileMenuOpen(false);
                     setIsBackupModalOpen(true);
                   }}
-                  className="w-full py-2.5 px-4 text-xs font-extrabold rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 flex items-center justify-center gap-2 shadow-2xs"
+                  className="w-full py-2.5 px-4 text-xs font-extrabold rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-950 border border-emerald-300 flex items-center justify-center gap-2 shadow-2xs"
                 >
-                  <Database className="w-4 h-4 text-amber-800 shrink-0" />
-                  <span>BACKUP / RESTORE DATA (JSON)</span>
+                  <Database className="w-4 h-4 text-emerald-800 shrink-0" />
+                  <span>SINKRONKAN DATA CLOUD & BACKUP</span>
                 </button>
 
                 <button

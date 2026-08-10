@@ -131,6 +131,49 @@ export async function getPersistentItem(key: string, fallback: string): Promise<
   return fallback;
 }
 
+export async function syncAllLocalToFirebase(): Promise<number> {
+  const keys = [
+    'kkn_admin_users_v2',
+    'kkn_hero_bg',
+    'kkn_about_img',
+    'kkn_navbar_logo',
+    'kkn_team_members_v1',
+    'kkn_gallery_items_v1',
+    'kkn_polaroids_v1',
+    'kkn_programs_v1',
+    'kkn_testimonials_v2',
+    'kkn_guestbook_entries_v1',
+    'kkn_programs_v2',
+    'kkn_gallery_v2',
+    'kkn_team_v2',
+    'kkn_hero_banner_v2',
+    'kkn_guestbook_v2',
+    'kkn_polaroids_v2'
+  ];
+
+  let syncedCount = 0;
+  for (const key of keys) {
+    try {
+      const localVal = localStorage.getItem(key);
+      if (localVal) {
+        let parsed;
+        try {
+          parsed = JSON.parse(localVal);
+        } catch {
+          parsed = localVal;
+        }
+        if (parsed !== null && parsed !== undefined && parsed !== '') {
+          await saveAppState(key, parsed);
+          syncedCount++;
+        }
+      }
+    } catch (e) {
+      console.warn(`Error syncing key ${key} to Firebase:`, e);
+    }
+  }
+  return syncedCount;
+}
+
 /**
  * Custom React hook for real-time Firebase Cloud Firestore + IndexedDB + LocalStorage persistent state.
  */
@@ -155,7 +198,7 @@ export function usePersistentState<T>(
   useEffect(() => {
     let isMounted = true;
 
-    // 1. Initial local load
+    // 1. Initial local load & auto-sync existing local data to Firebase Cloud
     getPersistentItem(key, '').then((saved) => {
       if (!isMounted || userHasUpdatedRef.current) return;
       if (saved) {
@@ -163,10 +206,16 @@ export function usePersistentState<T>(
           const parsed = JSON.parse(saved);
           if (parsed !== undefined && parsed !== null) {
             setState(parsed);
+            saveAppState(key, parsed).catch((err) =>
+              console.warn(`Auto sync to cloud failed for ${key}`, err)
+            );
           }
         } catch (_) {
           if (typeof initialValue === 'string') {
             setState(saved as unknown as T);
+            saveAppState(key, saved).catch((err) =>
+              console.warn(`Auto sync to cloud failed for ${key}`, err)
+            );
           }
         }
       }
