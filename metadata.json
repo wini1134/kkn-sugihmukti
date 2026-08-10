@@ -1,0 +1,6 @@
+{
+  "name": "SUGIHMUKTI 2026 - KKN Digital Archive",
+  "description": "Arsip Digital KKN Desa Sugihmukti 2026 - Dokumentasi pengabdian masyarakat, program kerja unggulan, tim mahasiswa, galeri foto, dan buku tamu digital.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

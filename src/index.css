@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Work Sans', sans-serif;
+    background-color: #f8f9fa;
+    color: #191c1d;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+}
+
+/* Custom Memoir Shadows & Utilities */
+.memoir-shadow {
+  box-shadow: 0px 10px 30px rgba(27, 67, 50, 0.05);
+}
+
+.memoir-shadow-lg {
+  box-shadow: 0px 20px 40px rgba(27, 67, 50, 0.09);
+}
+
+/* Hide scrollbar for clean horizontal scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #1b4332;
+  border-radius: 10px;
+}
+
+/* Polaroid rotate styling */
+.polaroid-1 { transform: rotate(-2deg); }
+.polaroid-2 { transform: rotate(3deg); }
+.polaroid-3 { transform: rotate(-1deg); }
+.polaroid-4 { transform: rotate(2deg); }
+.polaroid-hover:hover {
+  transform: rotate(0deg) scale(1.03);
+}
+
