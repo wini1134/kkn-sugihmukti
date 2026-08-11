@@ -162,7 +162,7 @@ export async function getPersistentTimestamp(key: string): Promise<number> {
 }
 
 export async function syncAllLocalToFirebase(): Promise<number> {
-  const keys = [
+  const keysSet = new Set([
     'kkn_admin_users_v2',
     'kkn_hero_bg',
     'kkn_about_img',
@@ -179,21 +179,38 @@ export async function syncAllLocalToFirebase(): Promise<number> {
     'kkn_hero_banner_v2',
     'kkn_guestbook_v2',
     'kkn_polaroids_v2'
-  ];
+  ]);
 
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('kkn_') && !k.endsWith('_time')) {
+        keysSet.add(k);
+      }
+    }
+  } catch (_) {}
+
+  const keys = Array.from(keysSet);
   let syncedCount = 0;
+
   for (const key of keys) {
     try {
       const saved = await getPersistentItem(key, '');
       const time = await getPersistentTimestamp(key);
-      if (saved) {
+      if (saved && saved !== '""' && saved !== 'null' && saved !== '[]' && saved !== '{}') {
         let parsed;
         try {
           parsed = JSON.parse(saved);
         } catch {
           parsed = saved;
         }
-        if (parsed !== null && parsed !== undefined && parsed !== '') {
+
+        const isNonEmpty =
+          (Array.isArray(parsed) && parsed.length > 0) ||
+          (typeof parsed === 'object' && parsed !== null && Object.keys(parsed).length > 0) ||
+          (typeof parsed === 'string' && parsed.trim() !== '');
+
+        if (isNonEmpty) {
           await saveAppState(key, parsed, time || Date.now());
           syncedCount++;
         }
@@ -250,7 +267,7 @@ export function usePersistentState<T>(
       if (!isMounted) return;
       if (time) localTimestampRef.current = time;
 
-      if (saved) {
+      if (saved && saved !== '""' && saved !== 'null' && saved !== '[]' && saved !== '{}') {
         hasLocalSavedRecordRef.current = true;
         if (!userHasUpdatedRef.current) {
           try {
@@ -258,11 +275,18 @@ export function usePersistentState<T>(
             if (parsed !== undefined && parsed !== null) {
               setState(parsed);
               localValueRef.current = parsed;
+
+              // Immediately push local state to Firebase Cloud in background so all other devices see it
+              const now = time || Date.now();
+              saveAppState(key, parsed, now).catch(() => {});
             }
           } catch (_) {
-            if (typeof initialValue === 'string') {
+            if (typeof initialValue === 'string' && saved.trim() !== '') {
               setState(saved as unknown as T);
               localValueRef.current = saved as unknown as T;
+
+              const now = time || Date.now();
+              saveAppState(key, saved, now).catch(() => {});
             }
           }
         }
