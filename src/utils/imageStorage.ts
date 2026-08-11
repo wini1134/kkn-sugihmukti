@@ -6,9 +6,9 @@ const STORE_NAME = 'app_data';
 
 export function compressImageFile(
   file: File,
-  maxWidth = 1000,
-  maxHeight = 1000,
-  quality = 0.75
+  maxWidth = 600,
+  maxHeight = 600,
+  quality = 0.65
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') {
@@ -79,14 +79,7 @@ function openDB(): Promise<IDBDatabase> {
 export async function setPersistentItem(key: string, value: string | object): Promise<void> {
   const stringVal = typeof value === 'string' ? value : JSON.stringify(value);
 
-  // 1. Save to localStorage
-  try {
-    localStorage.setItem(key, stringVal);
-  } catch (err) {
-    console.warn(`localStorage setItem full for ${key}, relying on IndexedDB & Firebase`, err);
-  }
-
-  // 2. Save to IndexedDB
+  // 1. Save to IndexedDB (Primary reliable storage - no 5MB limit)
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -96,7 +89,14 @@ export async function setPersistentItem(key: string, value: string | object): Pr
     console.error('IndexedDB save failed', err);
   }
 
-  // 3. Save to Firebase Firestore (Global & Permanent)
+  // 2. Save to localStorage as secondary fast cache
+  try {
+    localStorage.setItem(key, stringVal);
+  } catch (err) {
+    console.warn(`localStorage setItem full for ${key}, relying on IndexedDB & Firebase`, err);
+  }
+
+  // 3. Save to Firebase Firestore (Global & Permanent Cloud Sync)
   try {
     await saveAppState(key, value);
   } catch (err) {
@@ -105,13 +105,7 @@ export async function setPersistentItem(key: string, value: string | object): Pr
 }
 
 export async function getPersistentItem(key: string, fallback: string): Promise<string> {
-  try {
-    const localVal = localStorage.getItem(key);
-    if (localVal) return localVal;
-  } catch (e) {
-    console.warn('localStorage read failed', e);
-  }
-
+  // Try IndexedDB first because it handles full data without quota truncations
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -126,6 +120,14 @@ export async function getPersistentItem(key: string, fallback: string): Promise<
     }
   } catch (e) {
     console.warn('IndexedDB read failed', e);
+  }
+
+  // Fallback to localStorage
+  try {
+    const localVal = localStorage.getItem(key);
+    if (localVal) return localVal;
+  } catch (e) {
+    console.warn('localStorage read failed', e);
   }
 
   return fallback;
@@ -199,7 +201,7 @@ export function usePersistentState<T>(
   useEffect(() => {
     let isMounted = true;
 
-    // 1. Initial local load & auto-sync existing local data to Firebase Cloud
+    // 1. Initial local load (from IndexedDB or LocalStorage cache)
     getPersistentItem(key, '').then((saved) => {
       if (!isMounted || userHasUpdatedRef.current) return;
       if (saved) {
@@ -207,16 +209,10 @@ export function usePersistentState<T>(
           const parsed = JSON.parse(saved);
           if (parsed !== undefined && parsed !== null) {
             setState(parsed);
-            saveAppState(key, parsed).catch((err) =>
-              console.warn(`Auto sync to cloud failed for ${key}`, err)
-            );
           }
         } catch (_) {
           if (typeof initialValue === 'string') {
             setState(saved as unknown as T);
-            saveAppState(key, saved).catch((err) =>
-              console.warn(`Auto sync to cloud failed for ${key}`, err)
-            );
           }
         }
       }
@@ -229,10 +225,14 @@ export function usePersistentState<T>(
       if (cloudValue !== undefined && cloudValue !== null) {
         setState(cloudValue);
         isLoadedRef.current = true;
-        // Keep local cache in sync
+        // Keep local cache in sync with Cloud
         try {
           const stringVal = typeof cloudValue === 'string' ? cloudValue : JSON.stringify(cloudValue);
-          localStorage.setItem(key, stringVal);
+          try { localStorage.setItem(key, stringVal); } catch (_) {}
+          openDB().then((db) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).put(stringVal, key);
+          }).catch(() => {});
         } catch (_) {}
       }
     });

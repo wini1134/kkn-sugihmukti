@@ -18,7 +18,7 @@ export const Hero: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const compressed = await compressImageFile(file, 1600, 1200, 0.78);
+        const compressed = await compressImageFile(file, 1000, 800, 0.65);
         setHeroBg(compressed);
         showSavedFeedback();
       } catch (err) {

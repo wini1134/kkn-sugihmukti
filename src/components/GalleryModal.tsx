@@ -47,7 +47,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const compressed = await compressImageFile(file, 1200, 1200, 0.8);
+        const compressed = await compressImageFile(file, 800, 800, 0.65);
         setImage(compressed);
       } catch (err) {
         console.error('Failed to compress image', err);

@@ -33,7 +33,7 @@ export const Team: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const compressed = await compressImageFile(file, 800, 800, 0.8);
+        const compressed = await compressImageFile(file, 600, 600, 0.65);
         setTeamMembers((prev) =>
           prev.map((m) => (m.id === id ? { ...m, photo: compressed } : m))
         );

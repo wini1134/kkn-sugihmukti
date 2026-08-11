@@ -61,7 +61,7 @@ export const TeamMemberModal: React.FC<TeamMemberModalProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const compressed = await compressImageFile(file, 800, 800, 0.8);
+        const compressed = await compressImageFile(file, 600, 600, 0.65);
         setPhoto(compressed);
       } catch (err) {
         console.error('Failed to compress image', err);

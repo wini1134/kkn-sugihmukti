@@ -47,7 +47,7 @@ export const Gallery: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const compressed = await compressImageFile(file, 1200, 1200, 0.78);
+        const compressed = await compressImageFile(file, 800, 800, 0.65);
         setItems((prev) =>
           prev.map((item) => (item.id === id ? { ...item, image: compressed } : item))
         );
@@ -61,7 +61,7 @@ export const Gallery: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const compressed = await compressImageFile(file, 1000, 1000, 0.78);
+        const compressed = await compressImageFile(file, 800, 800, 0.65);
         setPolaroids((prev) =>
           prev.map((pol) => (pol.id === id ? { ...pol, image: compressed } : pol))
         );

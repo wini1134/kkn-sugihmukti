@@ -74,7 +74,7 @@ export const Navbar: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const compressed = await compressImageFile(file, 600, 600, 0.85);
+        const compressed = await compressImageFile(file, 400, 400, 0.65);
         setLogoUrl(compressed);
         triggerSuccessFeedback();
       } catch (err) {

@@ -77,7 +77,7 @@ export const Programs: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const compressed = await compressImageFile(file, 1200, 1200, 0.78);
+        const compressed = await compressImageFile(file, 800, 800, 0.65);
         setPrograms((prev) =>
           prev.map((p) => (p.id === id ? { ...p, image: compressed } : p))
         );
