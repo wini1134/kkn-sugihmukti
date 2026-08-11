@@ -230,6 +230,7 @@ export function usePersistentState<T>(
 
   const isLoadedRef = useRef(false);
   const userHasUpdatedRef = useRef(false);
+  const hasLocalSavedRecordRef = useRef<boolean>(false);
   const localTimestampRef = useRef<number>(0);
   const localValueRef = useRef<T>(state);
 
@@ -246,20 +247,23 @@ export function usePersistentState<T>(
       getPersistentItem(key, ''),
       getPersistentTimestamp(key)
     ]).then(([saved, time]) => {
-      if (!isMounted || userHasUpdatedRef.current) return;
+      if (!isMounted) return;
       if (time) localTimestampRef.current = time;
 
       if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (parsed !== undefined && parsed !== null) {
-            setState(parsed);
-            localValueRef.current = parsed;
-          }
-        } catch (_) {
-          if (typeof initialValue === 'string') {
-            setState(saved as unknown as T);
-            localValueRef.current = saved as unknown as T;
+        hasLocalSavedRecordRef.current = true;
+        if (!userHasUpdatedRef.current) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (parsed !== undefined && parsed !== null) {
+              setState(parsed);
+              localValueRef.current = parsed;
+            }
+          } catch (_) {
+            if (typeof initialValue === 'string') {
+              setState(saved as unknown as T);
+              localValueRef.current = saved as unknown as T;
+            }
           }
         }
       }
@@ -269,37 +273,23 @@ export function usePersistentState<T>(
     // 2. Subscribe to Real-Time Firebase Firestore updates
     const unsubscribe = subscribeToAppState(key, (cloudValue, cloudTimestampMs) => {
       if (!isMounted) return;
-      if (cloudValue !== undefined && cloudValue !== null) {
-        if (userHasUpdatedRef.current) return;
+      if (cloudValue === undefined || cloudValue === null) return;
 
-        // Prevent empty or default cloud state from overwriting custom local data
-        const isCloudEmpty =
-          (Array.isArray(cloudValue) && cloudValue.length === 0) ||
-          (typeof cloudValue === 'string' && cloudValue.trim() === '');
+      // If user is actively editing on this device right now, don't overwrite
+      if (userHasUpdatedRef.current) return;
 
-        const isLocalNotEmpty =
-          (Array.isArray(localValueRef.current) && localValueRef.current.length > 0) ||
-          (typeof localValueRef.current === 'string' && localValueRef.current.trim() !== '');
+      const deviceHasLocalSavedData = hasLocalSavedRecordRef.current;
 
-        // If local data exists and is newer than cloud data, push local data to Cloud instead of overwriting!
-        if (localTimestampRef.current > cloudTimestampMs && isLocalNotEmpty) {
-          saveAppState(key, localValueRef.current, localTimestampRef.current).catch(() => {});
-          return;
-        }
-
-        // If cloud is empty while local has data, don't overwrite local data with empty
-        if (isCloudEmpty && isLocalNotEmpty) {
-          saveAppState(key, localValueRef.current, localTimestampRef.current || Date.now()).catch(() => {});
-          return;
-        }
-
-        // Accept cloud update if cloud timestamp is newer or valid
+      // Case A: Fresh device with no local edits (HP, Vercel, new browser tab)
+      if (!deviceHasLocalSavedData) {
+        // Accept cloud data unconditionally
         setState(cloudValue);
         localValueRef.current = cloudValue;
         if (cloudTimestampMs) localTimestampRef.current = cloudTimestampMs;
         isLoadedRef.current = true;
+        hasLocalSavedRecordRef.current = true;
 
-        // Keep local cache in sync with Cloud
+        // Cache cloud value into local storage for offline use
         try {
           const stringVal = typeof cloudValue === 'string' ? cloudValue : JSON.stringify(cloudValue);
           try {
@@ -314,6 +304,35 @@ export function usePersistentState<T>(
             if (cloudTimestampMs) store.put(cloudTimestampMs.toString(), `${key}_time`);
           }).catch(() => {});
         } catch (_) {}
+        return;
+      }
+
+      // Case B: Device has a local saved record
+      const isCloudNewerOrEqual = cloudTimestampMs >= localTimestampRef.current || !localTimestampRef.current;
+
+      if (isCloudNewerOrEqual) {
+        setState(cloudValue);
+        localValueRef.current = cloudValue;
+        if (cloudTimestampMs) localTimestampRef.current = cloudTimestampMs;
+        isLoadedRef.current = true;
+
+        try {
+          const stringVal = typeof cloudValue === 'string' ? cloudValue : JSON.stringify(cloudValue);
+          try {
+            localStorage.setItem(key, stringVal);
+            if (cloudTimestampMs) localStorage.setItem(`${key}_time`, cloudTimestampMs.toString());
+          } catch (_) {}
+
+          openDB().then((db) => {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.put(stringVal, key);
+            if (cloudTimestampMs) store.put(cloudTimestampMs.toString(), `${key}_time`);
+          }).catch(() => {});
+        } catch (_) {}
+      } else {
+        // Local timestamp is strictly newer than cloud timestamp. Push local value to Cloud!
+        saveAppState(key, localValueRef.current, localTimestampRef.current).catch(() => {});
       }
     });
 
@@ -325,6 +344,7 @@ export function usePersistentState<T>(
 
   const setPersistentState = (updater: T | ((prev: T) => T)) => {
     userHasUpdatedRef.current = true;
+    hasLocalSavedRecordRef.current = true;
     isLoadedRef.current = true;
     const now = Date.now();
     localTimestampRef.current = now;
