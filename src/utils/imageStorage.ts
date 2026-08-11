@@ -154,13 +154,14 @@ export async function syncAllLocalToFirebase(): Promise<number> {
   let syncedCount = 0;
   for (const key of keys) {
     try {
-      const localVal = localStorage.getItem(key);
-      if (localVal) {
+      // Use getPersistentItem to check both localStorage AND IndexedDB (where large images live)
+      const saved = await getPersistentItem(key, '');
+      if (saved) {
         let parsed;
         try {
-          parsed = JSON.parse(localVal);
+          parsed = JSON.parse(saved);
         } catch {
-          parsed = localVal;
+          parsed = saved;
         }
         if (parsed !== null && parsed !== undefined && parsed !== '') {
           await saveAppState(key, parsed);
