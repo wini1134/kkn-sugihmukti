@@ -78,6 +78,7 @@ function openDB(): Promise<IDBDatabase> {
 
 export async function setPersistentItem(key: string, value: string | object): Promise<void> {
   const stringVal = typeof value === 'string' ? value : JSON.stringify(value);
+  const now = Date.now();
 
   // 1. Save to IndexedDB (Primary reliable storage - no 5MB limit)
   try {
@@ -85,6 +86,11 @@ export async function setPersistentItem(key: string, value: string | object): Pr
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
     store.put(stringVal, key);
+    store.put(now.toString(), `${key}_time`);
+    await new Promise<void>((resolve) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
   } catch (err) {
     console.error('IndexedDB save failed', err);
   }
@@ -92,13 +98,14 @@ export async function setPersistentItem(key: string, value: string | object): Pr
   // 2. Save to localStorage as secondary fast cache
   try {
     localStorage.setItem(key, stringVal);
+    localStorage.setItem(`${key}_time`, now.toString());
   } catch (err) {
     console.warn(`localStorage setItem full for ${key}, relying on IndexedDB & Firebase`, err);
   }
 
   // 3. Save to Firebase Firestore (Global & Permanent Cloud Sync)
   try {
-    await saveAppState(key, value);
+    await saveAppState(key, value, now);
   } catch (err) {
     console.error('Firebase save failed', err);
   }
@@ -133,6 +140,27 @@ export async function getPersistentItem(key: string, fallback: string): Promise<
   return fallback;
 }
 
+export async function getPersistentTimestamp(key: string): Promise<number> {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.get(`${key}_time`);
+    const result = await new Promise<string | undefined>((resolve) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(undefined);
+    });
+    if (result) return parseInt(result, 10) || 0;
+  } catch (_) {}
+
+  try {
+    const localTime = localStorage.getItem(`${key}_time`);
+    if (localTime) return parseInt(localTime, 10) || 0;
+  } catch (_) {}
+
+  return 0;
+}
+
 export async function syncAllLocalToFirebase(): Promise<number> {
   const keys = [
     'kkn_admin_users_v2',
@@ -156,8 +184,8 @@ export async function syncAllLocalToFirebase(): Promise<number> {
   let syncedCount = 0;
   for (const key of keys) {
     try {
-      // Use getPersistentItem to check both localStorage AND IndexedDB (where large images live)
       const saved = await getPersistentItem(key, '');
+      const time = await getPersistentTimestamp(key);
       if (saved) {
         let parsed;
         try {
@@ -166,7 +194,7 @@ export async function syncAllLocalToFirebase(): Promise<number> {
           parsed = saved;
         }
         if (parsed !== null && parsed !== undefined && parsed !== '') {
-          await saveAppState(key, parsed);
+          await saveAppState(key, parsed, time || Date.now());
           syncedCount++;
         }
       }
@@ -188,8 +216,13 @@ export function usePersistentState<T>(
     try {
       const local = localStorage.getItem(key);
       if (local) {
-        const parsed = JSON.parse(local);
-        if (parsed !== null && parsed !== undefined) return parsed;
+        try {
+          const parsed = JSON.parse(local);
+          if (parsed !== null && parsed !== undefined) return parsed;
+        } catch (_) {
+          // If local is a raw string (e.g., base64 photo or text)
+          return local as unknown as T;
+        }
       }
     } catch (_) {}
     return initialValue;
@@ -197,22 +230,36 @@ export function usePersistentState<T>(
 
   const isLoadedRef = useRef(false);
   const userHasUpdatedRef = useRef(false);
+  const localTimestampRef = useRef<number>(0);
+  const localValueRef = useRef<T>(state);
+
+  // Keep localValueRef in sync with state
+  useEffect(() => {
+    localValueRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     let isMounted = true;
 
-    // 1. Initial local load (from IndexedDB or LocalStorage cache)
-    getPersistentItem(key, '').then((saved) => {
+    // 1. Initial local load from IndexedDB (handles larger datasets and strings reliably)
+    Promise.all([
+      getPersistentItem(key, ''),
+      getPersistentTimestamp(key)
+    ]).then(([saved, time]) => {
       if (!isMounted || userHasUpdatedRef.current) return;
+      if (time) localTimestampRef.current = time;
+
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (parsed !== undefined && parsed !== null) {
             setState(parsed);
+            localValueRef.current = parsed;
           }
         } catch (_) {
           if (typeof initialValue === 'string') {
             setState(saved as unknown as T);
+            localValueRef.current = saved as unknown as T;
           }
         }
       }
@@ -220,18 +267,51 @@ export function usePersistentState<T>(
     });
 
     // 2. Subscribe to Real-Time Firebase Firestore updates
-    const unsubscribe = subscribeToAppState(key, (cloudValue) => {
+    const unsubscribe = subscribeToAppState(key, (cloudValue, cloudTimestampMs) => {
       if (!isMounted) return;
       if (cloudValue !== undefined && cloudValue !== null) {
+        if (userHasUpdatedRef.current) return;
+
+        // Prevent empty or default cloud state from overwriting custom local data
+        const isCloudEmpty =
+          (Array.isArray(cloudValue) && cloudValue.length === 0) ||
+          (typeof cloudValue === 'string' && cloudValue.trim() === '');
+
+        const isLocalNotEmpty =
+          (Array.isArray(localValueRef.current) && localValueRef.current.length > 0) ||
+          (typeof localValueRef.current === 'string' && localValueRef.current.trim() !== '');
+
+        // If local data exists and is newer than cloud data, push local data to Cloud instead of overwriting!
+        if (localTimestampRef.current > cloudTimestampMs && isLocalNotEmpty) {
+          saveAppState(key, localValueRef.current, localTimestampRef.current).catch(() => {});
+          return;
+        }
+
+        // If cloud is empty while local has data, don't overwrite local data with empty
+        if (isCloudEmpty && isLocalNotEmpty) {
+          saveAppState(key, localValueRef.current, localTimestampRef.current || Date.now()).catch(() => {});
+          return;
+        }
+
+        // Accept cloud update if cloud timestamp is newer or valid
         setState(cloudValue);
+        localValueRef.current = cloudValue;
+        if (cloudTimestampMs) localTimestampRef.current = cloudTimestampMs;
         isLoadedRef.current = true;
+
         // Keep local cache in sync with Cloud
         try {
           const stringVal = typeof cloudValue === 'string' ? cloudValue : JSON.stringify(cloudValue);
-          try { localStorage.setItem(key, stringVal); } catch (_) {}
+          try {
+            localStorage.setItem(key, stringVal);
+            if (cloudTimestampMs) localStorage.setItem(`${key}_time`, cloudTimestampMs.toString());
+          } catch (_) {}
+
           openDB().then((db) => {
             const tx = db.transaction(STORE_NAME, 'readwrite');
-            tx.objectStore(STORE_NAME).put(stringVal, key);
+            const store = tx.objectStore(STORE_NAME);
+            store.put(stringVal, key);
+            if (cloudTimestampMs) store.put(cloudTimestampMs.toString(), `${key}_time`);
           }).catch(() => {});
         } catch (_) {}
       }
@@ -246,8 +326,12 @@ export function usePersistentState<T>(
   const setPersistentState = (updater: T | ((prev: T) => T)) => {
     userHasUpdatedRef.current = true;
     isLoadedRef.current = true;
+    const now = Date.now();
+    localTimestampRef.current = now;
+
     setState((prev) => {
       const nextValue = typeof updater === 'function' ? (updater as (prev: T) => T)(prev) : updater;
+      localValueRef.current = nextValue;
       setPersistentItem(key, nextValue as unknown as string | object);
       return nextValue;
     });

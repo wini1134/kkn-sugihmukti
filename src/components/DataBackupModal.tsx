@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Download, Upload, Database, X, Check, AlertCircle, RefreshCw, Cloud, Zap } from 'lucide-react';
-import { syncAllLocalToFirebase, setPersistentItem } from '../utils/imageStorage';
+import { syncAllLocalToFirebase, setPersistentItem, getPersistentItem } from '../utils/imageStorage';
 
 interface DataBackupModalProps {
   isOpen: boolean;
@@ -54,13 +54,13 @@ export const DataBackupModal: React.FC<DataBackupModalProps> = ({ isOpen, onClos
   };
 
   // Export/Download JSON
-  const handleExport = () => {
+  const handleExport = async () => {
     try {
       const backupData: Record<string, any> = {};
       let keysFound = 0;
 
-      LOCAL_STORAGE_KEYS.forEach((key) => {
-        const value = localStorage.getItem(key);
+      for (const key of LOCAL_STORAGE_KEYS) {
+        const value = await getPersistentItem(key, '');
         if (value) {
           try {
             backupData[key] = JSON.parse(value);
@@ -69,7 +69,7 @@ export const DataBackupModal: React.FC<DataBackupModalProps> = ({ isOpen, onClos
           }
           keysFound++;
         }
-      });
+      }
 
       if (keysFound === 0) {
         setStatusMsg({

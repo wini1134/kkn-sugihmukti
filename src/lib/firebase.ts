@@ -18,7 +18,10 @@ const CHUNK_SIZE = 500000; // 500 KB chunk threshold to safely bypass Firestore 
 /**
  * Listens to real-time changes from Firestore for a given state key.
  */
-export function subscribeToAppState(key: string, onChange: (value: any) => void) {
+export function subscribeToAppState(
+  key: string,
+  onChange: (value: any, timestampMs: number) => void
+) {
   const docRef = doc(db, 'app_state', key);
   return onSnapshot(
     docRef,
@@ -26,6 +29,10 @@ export function subscribeToAppState(key: string, onChange: (value: any) => void)
       if (snapshot.exists()) {
         const data = snapshot.data();
         if (!data) return;
+
+        const timestampMs =
+          data.updatedAtTimestamp ||
+          (data.updatedAt ? Date.parse(data.updatedAt) : 0);
 
         if (data.isChunked && data.chunkCount > 0) {
           try {
@@ -40,9 +47,9 @@ export function subscribeToAppState(key: string, onChange: (value: any) => void)
 
             if (fullString) {
               try {
-                onChange(JSON.parse(fullString));
+                onChange(JSON.parse(fullString), timestampMs);
               } catch (_) {
-                onChange(fullString);
+                onChange(fullString, timestampMs);
               }
             }
           } catch (err) {
@@ -51,9 +58,9 @@ export function subscribeToAppState(key: string, onChange: (value: any) => void)
         } else if (data.value !== undefined) {
           try {
             const parsed = JSON.parse(data.value);
-            onChange(parsed);
+            onChange(parsed, timestampMs);
           } catch (_) {
-            onChange(data.value);
+            onChange(data.value, timestampMs);
           }
         }
       }
@@ -67,9 +74,14 @@ export function subscribeToAppState(key: string, onChange: (value: any) => void)
 /**
  * Saves or updates state value in Firestore for real-time sync across devices and deployments.
  */
-export async function saveAppState(key: string, value: any): Promise<void> {
+export async function saveAppState(
+  key: string,
+  value: any,
+  timestampMs = Date.now()
+): Promise<void> {
   try {
     const stringVal = typeof value === 'string' ? value : JSON.stringify(value);
+    const nowIso = new Date(timestampMs).toISOString();
 
     if (stringVal.length > CHUNK_SIZE) {
       const chunkCount = Math.ceil(stringVal.length / CHUNK_SIZE);
@@ -84,22 +96,32 @@ export async function saveAppState(key: string, value: any): Promise<void> {
       await Promise.all(chunkPromises);
 
       const mainDocRef = doc(db, 'app_state', key);
-      await setDoc(mainDocRef, {
-        key,
-        isChunked: true,
-        chunkCount,
-        value: '',
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      await setDoc(
+        mainDocRef,
+        {
+          key,
+          isChunked: true,
+          chunkCount,
+          value: '',
+          updatedAt: nowIso,
+          updatedAtTimestamp: timestampMs,
+        },
+        { merge: true }
+      );
     } else {
       const mainDocRef = doc(db, 'app_state', key);
-      await setDoc(mainDocRef, {
-        key,
-        isChunked: false,
-        chunkCount: 0,
-        value: stringVal,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
+      await setDoc(
+        mainDocRef,
+        {
+          key,
+          isChunked: false,
+          chunkCount: 0,
+          value: stringVal,
+          updatedAt: nowIso,
+          updatedAtTimestamp: timestampMs,
+        },
+        { merge: true }
+      );
     }
   } catch (error) {
     console.error(`Firestore save error for ${key}:`, error);
